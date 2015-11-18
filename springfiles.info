@@ -1,0 +1,5 @@
+; $Id: springfiles.info,v 1.0 2010/11/21 17:35:00 jobjol Exp $
+name = SpringFiles
+description = Custom things
+core = 6.x
+package = Other

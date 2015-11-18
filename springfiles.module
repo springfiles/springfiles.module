@@ -1,0 +1,157 @@
+<?php
+require_once ( dirname(__FILE__) . '/springfiles.upq.inc'); 
+require_once ( dirname(__FILE__) . '/springfiles.views.inc'); 
+
+//implementation of hook_menu
+function springfiles_menu() {
+  $items = array();
+  $items['publisher/autocomplete'] = array(
+    'page callback' => 'springfiles_publisher_autocomplete',
+    'type' => MENU_CALLBACK,
+    'access arguments' => array('create file content'), 
+  );
+  $items['filereference/autocomplete'] = array(
+    'page callback' => 'springfiles_filereference_autocomplete',
+    'type' => MENU_CALLBACK,
+    'access arguments' => array('create file content'),
+  );
+  $items['download.php'] = array(
+    'page callback' => 'springfiles_download_redirect',
+    'type' => MENU_CALLBACK,
+    'access arguments' => array('access content'),
+  );
+  $items['subcategory.php'] = array(
+    'page callback' => 'springfiles_main_redirect',
+    'type' => MENU_CALLBACK,
+    'access arguments' => array('access content'),
+  );
+  return $items;
+}
+
+//autocomplete function for content_type file author field
+function springfiles_publisher_autocomplete($string = '') {
+  $matches = array();
+  if ($string) {
+    $result = db_query_range("SELECT name FROM {users} WHERE LOWER(name) LIKE LOWER('%%%s%%')", $string, 0, 10);
+    while ($data = db_fetch_object($result)) {
+      $matches[$data->name] = check_plain($data->name);
+   }
+  }
+  print drupal_to_js($matches);
+  exit();
+}
+//autocomplete function for filereference field
+function springfiles_filereference_autocomplete($string = '') {
+  $matches = array();
+  if ($string) {
+    $result = db_query_range("SELECT filename FROM {files} WHERE LOWER(filename) LIKE LOWER('%%%s%%')", $string, 0, 10);
+    while ($data = db_fetch_object($result)) {
+      $matches[$data->name] = check_plain($data->name);
+   }
+  }
+  print drupal_to_js($matches);
+  exit();
+}
+
+//implementation of hook_form_alter
+function springfiles_form_alter(&$form, &$form_state, $form_id) {
+    
+    //add autocomplete for filereference field
+    if ($form_id == 'details_springmap_node_form')
+    {
+      $form['field_file_reference']['#default_value'][0]['value'] = arg(3);
+    }
+    
+    //add autocomplete for file author field
+    if ($form_id == 'file_node_form')
+    {
+       $form['field_author'][0]['#autocomplete_path'] = 'publisher/autocomplete';
+       $default_author = user_load(array('uid' => $form['uid']['#value']));
+       $form['field_author'][0]['#default_value']['value'] = $default_author->name;
+       $form['field_file'][1]['#type'] = 'value';
+       unset($form['field_file'][1]);
+        $form['field_sfid'][0]['#type'] = 'value';
+    }
+    
+    if ($form_id == 'comment_form') {
+      $form['comment_filter']['format'] = array();
+    }
+    if ($form['#id'] == 'views-exposed-form-categories-block-2') {
+      $form['title']['#size'] = 15;
+      $form['field_mapsizex_value']['#size'] = 10;
+      $form['field_mapsizey_value']['#size'] = 10;
+    }
+    if ($form['#id'] == 'views-exposed-form-front-block-3') {
+      $form['title']['#size'] = 15;
+    }
+    if ($form['#id'] == 'views-exposed-form-categories-block-4') {
+      $form['title']['#size'] = 15;
+    }
+    if ($form['#id'] == 'views-exposed-form-front-block-2') {
+      $form['title']['#size'] = 15;
+    }
+}
+
+//implementation of hook_nodeapi
+//add download count info & file metadata to node object
+function springfiles_nodeapi(&$node, $op, $teaser) {
+  
+  global $user;
+  if ($node->type == 'file')
+  {
+    switch ($op) {
+      case 'view' :
+      
+      $q = db_fetch_object(db_query("SELECT totalcount, daycount FROM {node_counter} WHERE nid = %d", $node->nid));
+      $node->totalcount = $q->totalcount;
+      $node->daycount = $q->daycount;
+      //add normalmap, heightmap and metalmap
+      $q = db_fetch_object(db_query("SELECT metadata FROM {file_mirror_files} WHERE fid = %d", $node->field_file[0]['fid']));
+      $metadata = json_decode($q->metadata);
+      if (isset($metadata->mapimages[0]))
+      {
+        $node->normalmap = "http://metadata.springfiles.com/".$metadata->mapimages[0];
+        $node->heightmap = "http://metadata.springfiles.com/".$metadata->mapimages[1];
+        $node->metalmap = "http://metadata.springfiles.com/".$metadata->mapimages[2];
+      }
+      if (isset($metadata->splash))
+      {
+          foreach ($metadata->splash as $key => $splash)
+          {
+            $node->splash[$key] = "http://metadata.springfiles.com/".$splash;
+          }
+      }
+      $node->metadata = $metadata;
+    break;
+    }
+    
+  }
+}
+
+//checks if map details already exists
+//returns object
+function springfiles_springmap_exists ($filename)
+{
+        $q = db_fetch_object(db_query("SELECT nid FROM {content_type_details_springmap} WHERE field_file_reference_value = '%s'", $filename));
+	return $q;
+}
+
+//keep support for old download links and redirect to new file location
+function springfiles_download_redirect()
+{
+   $q = db_fetch_object(db_query("SELECT filepath FROM {files} WHERE filename = '%s'", $_GET['file']));
+   $path = str_replace('sites/default','system', $q->filepath);
+   drupal_goto($path);
+}
+
+function springfiles_main_redirect()
+{
+  drupal_goto('');
+}
+
+
+
+
+
+
+
