@@ -1,5 +1,4 @@
 <?php
-require_once ( dirname(__FILE__) . '/springfiles.upq.inc'); 
 require_once ( dirname(__FILE__) . '/springfiles.views.inc'); 
 
 //implementation of hook_menu
@@ -106,22 +105,25 @@ function springfiles_nodeapi(&$node, $op, $teaser) {
       $node->totalcount = $q->totalcount;
       $node->daycount = $q->daycount;
       //add normalmap, heightmap and metalmap
-      $q = db_fetch_object(db_query("SELECT metadata FROM {file_mirror_files} WHERE fid = %d", $node->field_file[0]['fid']));
-      $metadata = json_decode($q->metadata);
+
+      $q = db_fetch_object(db_query("SELECT md5 FROM {filehash} WHERE fid = %d", $node->field_file[0]['fid']));
+      $content=file_get_contents("https://api.springfiles.com/json.php?metadata=on&images=on&md5=" . $q->md5);
+      $obj  =json_decode($content);
+      $metadata = $obj[0];
       if (isset($metadata->mapimages[0]))
       {
-        $node->normalmap = "http://metadata.springfiles.com/".$metadata->mapimages[0];
-        $node->heightmap = "http://metadata.springfiles.com/".$metadata->mapimages[1];
-        $node->metalmap = "http://metadata.springfiles.com/".$metadata->mapimages[2];
+        $node->normalmap = $metadata->mapimages[0];
+        $node->heightmap = $metadata->mapimages[1];
+        $node->metalmap = $metadata->mapimages[2];
       }
       if (isset($metadata->splash))
       {
           foreach ($metadata->splash as $key => $splash)
           {
-            $node->splash[$key] = "http://metadata.springfiles.com/".$splash;
+            $node->splash[$key] = $splash;
           }
       }
-      $node->metadata = $metadata;
+      $node->metadata = $metadata->metadata;
     break;
     }
     
